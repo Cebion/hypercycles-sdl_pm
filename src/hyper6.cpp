@@ -399,7 +399,7 @@ char hyper_boot=0, cycle_load_flag=0, rings_load_flag=0, tex_load_flag=0, carrie
 char access_load_flag=0, wallpro_flag=1, wallpro_ctr=0, saucer_load_flag=0;
 char missile_load_flag=0, keystat_load_flag=0;
 char music_toggle=2, digi_flag=2, view_flag=0, controls=0,dead=0, ctrl_pressed=0; // NOTE(mike): 2 = music/sound active?
-unsigned char music_cnt=4, psi=0, pause=0;
+unsigned char music_cnt=4, psi=0, game_paused=0;
 char access_buf[44], rider_walls[38];
 int grid_dir, grid_curspeed, grid_setspeed, radar_unit=1,low_power_flag=0;
 int low_speed=4, hi_speed=32;
@@ -2131,7 +2131,7 @@ void _interrupt _far New_Key_Int(void)
         new_key=91;
         break;
       case 25: //P Pause
-        if(!pause) pause=1;
+        if(!game_paused) game_paused=1;
         break;
       case 24: //O Continue
         //demo_command=99;
@@ -5263,7 +5263,8 @@ void Move_Weapon()
 
 void cont_music()
 {
-       if(!musRunning && music_toggle==2) 
+       delay(16);
+       if(!musRunning && music_toggle==2)
        { 
         if( music_cnt==4) { play_again(); music_cnt--; }
        }
@@ -6262,6 +6263,7 @@ int menu2()
     e=0;
     while(!e)
     {
+       delay(16);
        switch( new_key )
        {
          case 'J':
@@ -6269,7 +6271,7 @@ int menu2()
            new_key=0;
            e++;
            break;
-         case 27:  
+         case 27:
            menu2_unload();
            menu1_load();
            new_key=0;
@@ -7046,15 +7048,16 @@ int save_load(int which)  //0=save 1=load
            }
            else play_again();
            music_cnt=4;
-         }  
+         }
       }
+      delay(16);
   }
   PCX_Unload(158);
   PCX_Unload(159);
   PCX_Unload(157);
-  new_key=0;  
+  new_key=0;
   return(0);
-}  
+}
 
 
 
@@ -8231,7 +8234,7 @@ void mcp1()
       frm++;
       
       
-      if(pause)
+      if(game_paused)
       {
        delay(100);
        new_key=0;
@@ -8240,7 +8243,7 @@ void mcp1()
        {
          cont_music();
        }
-       pause=0;
+       game_paused=0;
       }
 
       if(system_delay) delay(system_delay);

@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
+#include <string>
+#include <unordered_map>
 
 //#define  WAIT_TIME                    0x0200
 #define  WAIT_TIME                    0x0800
@@ -697,43 +699,81 @@ extern int GFL2;
 FILE* open_adt2(char *fname);
 void set_vmode( int vmode);
 
+// The original DOS voice clips are headerless 8-bit unsigned mono PCM played
+// directly to a Sound Blaster's DSP/DMA at a per-call rate (digital_speed) -
+// hardware access that has no SDL2 equivalent, which is why the porter
+// stubbed this out. Reimplemented here via SDL_mixer: wrap the raw bytes in
+// a minimal WAV header carrying the intended sample rate, and let
+// Mix_LoadWAV_RW's own conversion resample it to match whatever rate
+// Mix_OpenAudio actually opened (see Game.cpp). Chunks are cached per
+// filename+rate, since the same clip is sometimes replayed at a different
+// digital_speed for a pitch-shift effect (e.g. the startup jingle, cheat
+// sounds), which must stay distinct after resampling.
+static Mix_Chunk* LoadVoxChunk(const char* fname, int rate)
+{
+	static std::unordered_map<std::string, Mix_Chunk*> cache;
+
+	std::string key = std::string(fname) + "@" + std::to_string(rate);
+	auto it = cache.find(key);
+	if (it != cache.end())
+	{
+		return it->second;
+	}
+
+	FILE* fp = fopen(fname, "rb");
+	if (fp == NULL)
+	{
+		cache[key] = NULL;
+		return NULL;
+	}
+
+	unsigned int dataSize = (unsigned int)filelen(fp);
+	unsigned int sampleRate = (unsigned int)rate;
+	unsigned int byteRate = sampleRate; // mono, 8 bits/sample: byteRate == sampleRate
+	unsigned int riffSize = 36 + dataSize;
+	unsigned int fmtSize = 16;
+	unsigned short audioFormatPcm = 1;
+	unsigned short numChannels = 1;
+	unsigned short blockAlign = 1;
+	unsigned short bitsPerSample = 8;
+
+	unsigned char* buffer = (unsigned char*)malloc(44 + dataSize);
+	memcpy(buffer, "RIFF", 4);
+	memcpy(buffer + 4, &riffSize, 4);
+	memcpy(buffer + 8, "WAVE", 4);
+	memcpy(buffer + 12, "fmt ", 4);
+	memcpy(buffer + 16, &fmtSize, 4);
+	memcpy(buffer + 20, &audioFormatPcm, 2);
+	memcpy(buffer + 22, &numChannels, 2);
+	memcpy(buffer + 24, &sampleRate, 4);
+	memcpy(buffer + 28, &byteRate, 4);
+	memcpy(buffer + 32, &blockAlign, 2);
+	memcpy(buffer + 34, &bitsPerSample, 2);
+	memcpy(buffer + 36, "data", 4);
+	memcpy(buffer + 40, &dataSize, 4);
+	fread(buffer + 44, 1, dataSize, fp);
+	fclose(fp);
+
+	SDL_RWops* rw = SDL_RWFromMem(buffer, 44 + dataSize);
+	Mix_Chunk* chunk = Mix_LoadWAV_RW(rw, 1); // freesrc=1: SDL_RWclose()'s the RWops for us
+	free(buffer);
+
+	if (chunk == NULL)
+	{
+		printf("play_vox: Mix_LoadWAV_RW failed for %s: %s\n", fname, Mix_GetError());
+	}
+
+	cache[key] = chunk;
+	return chunk;
+}
+
 void play_vox(char * fname)
 {
-	// MIKE:
-	return;
+  if(digi_flag<2) return;
 
-  int a, length;
-  FILE* fp;
-
-  if(digi_flag<2) return; 
-  //a = CTV_Card_Here();
-  
-  a = CTV_Detect();
-  ON_OFF_Speaker(1);
-  CTV_Halt(); 
-  
- 
-  fp = open_adt2(fname);
-
-  if(fp == NULL) 
+  Mix_Chunk* chunk = LoadVoxChunk(fname, digital_speed);
+  if (chunk != NULL)
   {
-    /*
-     set_vmode(2);
-     printf("CTV Error %i\n",fp);
-     new_key=0;
-     while(!new_key) _enable();
-     delay(100);
-     new_key=0;
-     set_vmode(0x13);
-    */
-    return;
+    Mix_PlayChannel(-1, chunk, 0);
   }
-  
-  if(!ADT_FLAG) length = filelen (fp);
-  else length=GFL2;
-  
-  fread(digibuf, 1, length, fp);
-  fclose(fp);
-
-  a = CTV_Output( digibuf, length, digital_speed);
 }

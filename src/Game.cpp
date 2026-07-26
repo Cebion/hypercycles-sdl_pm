@@ -26,9 +26,25 @@ bool Game_Init( Game* game )
 		return false;
 	}
 
-	if( SDL_CreateWindowAndRenderer(1280, 960, SDL_WINDOW_ALLOW_HIGHDPI, &game->window, &game->renderer) )
+	// SDL_WINDOW_FULLSCREEN_DESKTOP overrides the requested 1280x960 size to
+	// match the actual current display mode, so this fills the panel on any
+	// device instead of assuming a fixed desktop-class resolution.
+	game->window = SDL_CreateWindow( "", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 1280, 960, SDL_WINDOW_FULLSCREEN_DESKTOP | SDL_WINDOW_ALLOW_HIGHDPI );
+	if( game->window == NULL )
 	{
-		printf("SDL_CreateWindowAndRenderer Error: %s\n", SDL_GetError());
+		printf("SDL_CreateWindow Error: %s\n", SDL_GetError());
+		return false;
+	}
+
+	// Force the software renderer: the 320x200 streaming texture below is hand-packed
+	// as SDL_PIXELFORMAT_RGBA8888 every frame, which some GLES-backed renderers (e.g.
+	// the Mali blob driver on RK3326) don't support as a texture format, failing
+	// SDL_CreateTexture. The software renderer has no such restriction and this
+	// workload is trivially light for it.
+	game->renderer = SDL_CreateRenderer( game->window, -1, SDL_RENDERER_SOFTWARE );
+	if( game->renderer == NULL )
+	{
+		printf("SDL_CreateRenderer Error: %s\n", SDL_GetError());
 		return false;
 	}
 

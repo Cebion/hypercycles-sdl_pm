@@ -15,6 +15,7 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 #include "Game.h"
+#include <filesystem>
 
 extern void main_hyper6(void);
 
@@ -22,6 +23,16 @@ Game game;
 
 int main( int argc, char* argv[] )
 {
+	// The game loads all its data files (and reads/writes hyper.cfg/hyper.sav) via
+	// bare relative fopen(), so if an "assets" folder sits next to the binary, run
+	// from inside it. No-op for existing dev setups where the debugger/IDE already
+	// starts the process inside "assets" itself (premake5.lua's debugdir).
+	std::error_code ec;
+	if( std::filesystem::is_directory( "assets", ec ) )
+	{
+		std::filesystem::current_path( "assets", ec );
+	}
+
 	if( !Game_Init( &game ) )
 	{
 		return 1;

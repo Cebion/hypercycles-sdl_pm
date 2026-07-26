@@ -130,7 +130,14 @@ void Midi_Play (UCHAR* dataPtr)
 	music = Mix_LoadMUSType_RW(midi_stream, MUS_MID, 1);
 	if (music != NULL)
 	{
-		Mix_PlayMusic(music, -1);
+		if (Mix_PlayMusic(music, -1) == -1)
+		{
+			printf("Mix_PlayMusic failed: %s\n", Mix_GetError());
+		}
+	}
+	else
+	{
+		printf("Mix_LoadMUSType_RW failed: %s\n", Mix_GetError());
 	}
 
 	musRunning = 1;
